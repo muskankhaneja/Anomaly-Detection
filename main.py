@@ -2,7 +2,8 @@ import os
 import pandas as pd
 import seaborn as sns
 
-import definitions, data_preprocessing
+import definitions
+from src import data_preprocessing
 
 from sklearn.ensemble import IsolationForest
 
