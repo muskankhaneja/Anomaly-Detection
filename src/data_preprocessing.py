@@ -1,6 +1,4 @@
 import pandas as pd
-import numpy as np
-import definitions
 
 
 class DataPreprocessing:
@@ -26,4 +24,7 @@ class DataPreprocessing:
         features = pd.concat([features, type_one_hot], axis=1)
 
         return features
+
+
+
 

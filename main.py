@@ -1,7 +1,11 @@
 import os
 import pandas as pd
 import definitions
-from src import data_preprocessing, anomaly_detection
+from src import data_preprocessing, anomaly_detection, ann
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+import torch
+
 
 pd.set_option('display.max_columns', None)
 
@@ -15,33 +19,42 @@ preprocess = data_preprocessing.DataPreprocessing(df)
 df_preprocessed = preprocess.preprocessing()
 print("Data loaded with shape: ", df_preprocessed.head())
 
-# anomaly detection using Isolation forest
+# anomaly detection using Isolation forest------------------------------------------------------------
 iso_forest = anomaly_detection.TrainIsolationForest(df_preprocessed)
 iso_model = iso_forest.fit()
 
 # get anomaly scores
 df_iso = anomaly_detection.predict(iso_model, df)
 
+# checking
+print(df_iso['isFraud'].value_counts())
+print(df_iso[df_iso['anomaly_scores']<0].shape)
+print(df_iso[df_iso['anomaly_scores']<0]['isFraud'].value_counts())
 
-
-
-# fitting ANN to train classifier
+# fitting ANN to train classifier---------------------------------------------------------------------
 X = df_preprocessed
 y = df['isFraud']
 
-# split data into train test
-from sklearn.model_selection import train_test_split
+# train test split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=2023)
 
-# Scale
-from sklearn.preprocessing import StandardScaler
+# scaling
 scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
 # converting to tensor
-import torch
-X_train = torch.tensor(X_train, dtype=torch.float32)
-y_train = torch.tensor(y_train, dtype=torch.float32)
-X_test = torch.tensor(X_train, dtype=torch.float32)
-y_test = torch.tensor(y_test, dtype=torch.float32)
+X_train, y_train, X_test, y_test = ann.convert_to_tensor(X_train, y_train, X_test, y_test)
+
+# model training
+model = ann.ArtificialNeuralNetwork(X_train.shape[1], 64, 1)
+model = ann.train_ann(model, X_train, y_train, lr=0.001, epochs=100)
+
+# model evaluation
+with torch.no_grad():
+    model.eval()
+    test_outputs = model(X_test)
+    predicted_labels = (test_outputs >= 0.5).float()
+    accuracy = (predicted_labels == y_test.view(-1, 1)).float().mean()
+
+print(f'Test Accuracy: {accuracy.item():.4f}')
