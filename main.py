@@ -1,11 +1,7 @@
 import os
 import pandas as pd
-import seaborn as sns
-
 import definitions
-from src import data_preprocessing
-
-from sklearn.ensemble import IsolationForest
+from src import data_preprocessing, anomaly_detection
 
 pd.set_option('display.max_columns', None)
 
@@ -19,20 +15,33 @@ preprocess = data_preprocessing.DataPreprocessing(df)
 df_preprocessed = preprocess.preprocessing()
 print("Data loaded with shape: ", df_preprocessed.head())
 
-# Fit model
-forest = IsolationForest(contamination=0.01, random_state=2023)
-forest.fit(df_preprocessed)
-print("Executed")
+# anomaly detection using Isolation forest
+iso_forest = anomaly_detection.TrainIsolationForest(df_preprocessed)
+iso_model = iso_forest.fit()
 
-# Predictions
-scores = forest.score_samples(df_preprocessed)
-df['anomaly_scores'] = scores
-print(df['anomaly_scores'].describe().round(2))
+# get anomaly scores
+df_iso = anomaly_detection.predict(iso_model, df)
 
-# visualizing predictions
-sns.histplot(x=scores)
 
-# checking description of scores
-sns.boxplot(data=df, x='anomaly_scores', hue='isFraud')
-print(df.groupby('isFraud')['anomaly_scores'].describe().T.round(2))
 
+
+# fitting ANN to train classifier
+X = df_preprocessed
+y = df['isFraud']
+
+# split data into train test
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=2023)
+
+# Scale
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# converting to tensor
+import torch
+X_train = torch.tensor(X_train, dtype=torch.float32)
+y_train = torch.tensor(y_train, dtype=torch.float32)
+X_test = torch.tensor(X_train, dtype=torch.float32)
+y_test = torch.tensor(y_test, dtype=torch.float32)
