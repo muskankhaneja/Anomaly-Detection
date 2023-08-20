@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import numpy as np
 
 
 class ArtificialNeuralNetwork(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
-        super(Classifier, self).__init__()
+        super(ArtificialNeuralNetwork, self).__init__()
         self.layer1 = nn.Linear(input_size, hidden_size)
         self.relu = nn.ReLU()
         self.layer2 = nn.Linear(hidden_size, output_size)

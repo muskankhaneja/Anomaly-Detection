@@ -5,8 +5,6 @@ from src import data_preprocessing, anomaly_detection, ann
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import torch
-
-
 pd.set_option('display.max_columns', None)
 
 df = pd.read_csv(os.path.join(definitions.file_loc, definitions.filename))
@@ -17,7 +15,7 @@ print(df.isFraud.value_counts(normalize=True))
 # preprocessing
 preprocess = data_preprocessing.DataPreprocessing(df)
 df_preprocessed = preprocess.preprocessing()
-print("Data loaded with shape: ", df_preprocessed.head())
+print("Data loaded with shape: ", df_preprocessed.info())
 
 # anomaly detection using Isolation forest------------------------------------------------------------
 iso_forest = anomaly_detection.TrainIsolationForest(df_preprocessed)
