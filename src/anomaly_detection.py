@@ -9,7 +9,7 @@ class TrainIsolationForest:
         self.df = df
         return
 
-    def fit(self, contamination=0.01, random_state=2023):
+    def iso_fit(self, contamination=0.001, random_state=2023):
         forest = IsolationForest(contamination=contamination, random_state=random_state)
         forest.fit(self.df)
         print("Training complete..")
