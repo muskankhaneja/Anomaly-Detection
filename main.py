@@ -1,7 +1,9 @@
 import os
+import xml.dom
 
 import mlflow
 import mlflow.pytorch
+import numpy as np
 import pandas as pd
 import torch
 from sklearn.preprocessing import StandardScaler
@@ -23,43 +25,73 @@ preprocess = data_preprocessing.DataPreprocessing(df)
 df_preprocessed = preprocess.preprocessing()
 print("Data loaded with shape: ", df_preprocessed.shape)
 
-# df_preprocessed = df_preprocessed.head(1000)
-
 # fitting ANN to train autoencoder---------------------------------------------------------------------
 # scaling
 print("scaling..")
 scaler = StandardScaler()
-X_train = scaler.fit_transform(df_preprocessed)
+df_train = scaler.fit_transform(df_preprocessed)
 
 # converting to tensor
 print("converting to tensor..")
-X_train = torch.tensor(X_train, dtype=torch.float32).clone().detach()
-
-print("training model..")
+df_train_tensor = torch.tensor(df_train, dtype=torch.float32).clone().detach()
 
 # model training
-input_dim = X_train.shape[1]
+print("training model..")
+input_dim = df_train_tensor.shape[1]
 encoding_dim = 32
 learning_rates = [0.001, 0.01]
 n_epochs_list = [20, 50]
-timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 for learning_rate in learning_rates:
     for n_epochs in n_epochs_list:
         autoencoder_model = autoencoder.Autoencoder(input_dim, encoding_dim)
 
-    with mlflow.start_run(run_name=f'run_{timestamp}'):
-        mlflow.log_params({"num_epochs": n_epochs, "learning rate": learning_rate})
-        autoencoder.train_autoencoder(autoencoder_model, X_train, lr=learning_rate, epochs=n_epochs)
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        with mlflow.start_run(run_name=f'run_{timestamp}'):
+            mlflow.log_params({"num_epochs": n_epochs, "learning rate": learning_rate})
+            autoencoder.train_autoencoder(autoencoder_model, df_train_tensor, lr=learning_rate, epochs=n_epochs)
 
-    print(f"training completed for {learning_rate} and {n_epochs}")
+        print(f"training completed for {learning_rate} and {n_epochs}")
+
+# load experiment with the least loss
+client = mlflow.tracking.MlflowClient()
+runs = client.search_runs(experiment_ids=['0'])
+
+min_loss_value = np.inf
+for run in runs:
+    loss_val = run.data.metrics.get('loss')
+    if loss_val < min_loss_value:
+        min_loss_value = loss_val
+        min_loss_run_id = run.info.run_id
+
+model_path = f"runs:/{min_loss_run_id}/models"
+loaded_model = mlflow.pytorch.load_model(model_path)
+print(f"Loaded model from run with least loss (Run ID: {min_loss_run_id})")
+
+# evaluating results
+errors = autoencoder.calculate_reconstruction_error(loaded_model, df_train_tensor)
+df['errors'] = pd.Series(errors)
+
+# checking distribution of errors
+print(df.groupby('isFraud')['errors'].describe().round(2).T)
+
+# checking if top 8213 obs based on errors sorted by desc are actually fraud
+print(df.sort_values(by='errors', ascending=False).head(8213)['isFraud'].value_counts())
+
+# lift table
+df['bin'] = pd.qcut(df['errors'], q=100, labels=False)
+df_lift = df.groupby('bin').agg({'isFraud': ['count', 'sum'], 'errors': 'mean'}).sort_values(by='bin', ascending=False).reset_index()
+df_lift.columns = df_lift.columns.map(lambda col: '_'.join(col))
+
+total_frauds = len(df[df['isFraud'] == 1])
+df_lift['perc_isFraud'] = df_lift['isFraud_sum']/total_frauds
+df_lift['cum_perc_isFraud'] = df_lift['perc_isFraud'].cumsum()
+
+print("Lift table")
+print(df_lift)
+df_lift['cum_perc_isFraud'].plot()
 
 
-# errors = autoencoder.calculate_reconstruction_error(autoencoder_model, X_train)
-# anomalies = errors > 0.001
-# len(anomalies)
-
-#
 # # anomaly detection using Isolation forest------------------------------------------------------------
 # iso_forest = anomaly_detection.TrainIsolationForest(df_preprocessed)
 # iso_model = iso_forest.iso_fit(contamination=0.001)

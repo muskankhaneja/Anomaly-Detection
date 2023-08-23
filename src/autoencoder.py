@@ -57,5 +57,5 @@ def calculate_reconstruction_error(model, data):
     with torch.no_grad():
         reconstructions = model(data)
         mse_loss = nn.MSELoss(reduction='none')
-        errors = mse_loss(reconstructions, X_train).mean(dim=1)
+        errors = mse_loss(reconstructions, data).mean(dim=1)
     return errors
