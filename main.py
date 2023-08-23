@@ -1,12 +1,18 @@
 import os
+
+import mlflow
+import mlflow.pytorch
 import pandas as pd
-import definitions
-from src import data_preprocessing, anomaly_detection, ann, autoencoder
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 import torch
+from sklearn.preprocessing import StandardScaler
+from datetime import datetime
+
+import definitions
+from src import data_preprocessing, autoencoder
+
 pd.set_option('display.max_columns', None)
 
+print("Loading dataset...")
 df = pd.read_csv(os.path.join(definitions.file_loc, definitions.filename))
 print("Data loaded with shape: ", df.shape)
 print(df.isFraud.value_counts())
@@ -16,6 +22,43 @@ print(df.isFraud.value_counts(normalize=True))
 preprocess = data_preprocessing.DataPreprocessing(df)
 df_preprocessed = preprocess.preprocessing()
 print("Data loaded with shape: ", df_preprocessed.shape)
+
+# df_preprocessed = df_preprocessed.head(1000)
+
+# fitting ANN to train autoencoder---------------------------------------------------------------------
+# scaling
+print("scaling..")
+scaler = StandardScaler()
+X_train = scaler.fit_transform(df_preprocessed)
+
+# converting to tensor
+print("converting to tensor..")
+X_train = torch.tensor(X_train, dtype=torch.float32).clone().detach()
+
+print("training model..")
+
+# model training
+input_dim = X_train.shape[1]
+encoding_dim = 32
+learning_rates = [0.001, 0.01]
+n_epochs_list = [20, 50]
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+for learning_rate in learning_rates:
+    for n_epochs in n_epochs_list:
+        autoencoder_model = autoencoder.Autoencoder(input_dim, encoding_dim)
+
+    with mlflow.start_run(run_name=f'run_{timestamp}'):
+        mlflow.log_params({"num_epochs": n_epochs, "learning rate": learning_rate})
+        autoencoder.train_autoencoder(autoencoder_model, X_train, lr=learning_rate, epochs=n_epochs)
+
+    print(f"training completed for {learning_rate} and {n_epochs}")
+
+
+# errors = autoencoder.calculate_reconstruction_error(autoencoder_model, X_train)
+# anomalies = errors > 0.001
+# len(anomalies)
+
 #
 # # anomaly detection using Isolation forest------------------------------------------------------------
 # iso_forest = anomaly_detection.TrainIsolationForest(df_preprocessed)
@@ -57,22 +100,3 @@ print("Data loaded with shape: ", df_preprocessed.shape)
 #     accuracy = (predicted_labels == y_test.view(-1, 1)).float().mean()
 #
 # print(f'Test Accuracy: {accuracy.item():.4f}')
-
-# fitting ANN to train autoencoder---------------------------------------------------------------------
-# scaling
-scaler = StandardScaler()
-X_train = scaler.fit_transform(df_preprocessed)
-
-# converting to tensor
-X_train = torch.tensor(X_train, dtype=torch.float32).clone().detach()
-
-# model training
-input_dim = X_train.shape[1]
-encoding_dim = 32
-
-autoencoder_model = autoencoder.Autoencoder(input_dim, encoding_dim)
-
-autoencoder_model = autoencoder.train_autoencoder(autoencoder_model, X_train, lr=0.001, epochs=100)
-errors = autoencoder.calculate_reconstruction_error(autoencoder_model, X_train)
-anomalies = errors > 0.001
-len(anomalies)

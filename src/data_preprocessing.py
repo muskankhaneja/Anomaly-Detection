@@ -11,6 +11,7 @@ class DataPreprocessing:
 
         # feature engineering
         # numerical columns
+        print("executing preprocessing..")
         num_col = ['amount', 'oldbalanceOrg', 'newbalanceOrig', 'oldbalanceDest', 'newbalanceDest']
         features = self.df[num_col].copy()
 
@@ -22,6 +23,7 @@ class DataPreprocessing:
         # categorical columns
         type_one_hot = pd.get_dummies(self.df['type'], dtype=int)
         features = pd.concat([features, type_one_hot], axis=1)
+        print("preprocessing executed..")
 
         return features
 
